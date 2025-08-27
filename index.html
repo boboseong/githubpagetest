@@ -6,8 +6,9 @@
   <title>Typing Trainer · MVP</title>
   <style>
     :root{
-      --bg:#0b1220;           /* 배경 */
+      --bg:linear-gradient(180deg,#0b1220 0%, #0c1426 40%, #0e162a 100%); /* 배경 */
       --panel:#121a2b;        /* 카드 배경 */
+      --surface:#0c1426;      /* 입력/보조 배경 */
       --muted:#8ea0bf;
       --accent:#60a5fa;       /* 파랑 */
       --ok:#22c55e;           /* 초록 */
@@ -16,10 +17,32 @@
       --ink-dim:#b9c6e4;      /* 연한 본문 */
       --ring:#1f2a44;         /* 테두리 */
     }
+    body.theme-dark{
+      --bg:linear-gradient(180deg,#000 0%, #111 100%);
+      --panel:#1f1f1f;
+      --surface:#262626;
+      --muted:#aaaaaa;
+      --accent:#3b82f6;
+      --ink:#f1f1f1;
+      --ink-dim:#cccccc;
+      --ring:#333333;
+    }
+    body.theme-light{
+      --bg:linear-gradient(180deg,#f8fafc 0%, #f1f5f9 100%);
+      --panel:#ffffff;
+      --surface:#f1f5f9;
+      --muted:#4b5563;
+      --accent:#2563eb;
+      --ink:#1f2937;
+      --ink-dim:#4b5563;
+      --ring:#d1d5db;
+      --ok:#16a34a;
+      --bad:#dc2626;
+    }
     html,body{height:100%}
     body{
       margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-      background: linear-gradient(180deg,#0b1220 0%, #0c1426 40%, #0e162a 100%);
+      background:var(--bg);
       color:var(--ink); display:flex; align-items:center; justify-content:center; padding:24px;
     }
     .app{width:min(980px,100%);}
@@ -30,27 +53,28 @@
     header{display:flex; gap:16px; align-items:center; justify-content:space-between; padding:16px 18px; border-bottom:1px solid var(--ring); background:rgba(255,255,255,0.02)}
     header h1{font-size:18px; margin:0; letter-spacing:0.3px}
     header .sub{color:var(--ink-dim); font-size:12px}
+    header .right{display:flex; align-items:center; gap:8px}
 
     .controls{display:grid; grid-template-columns:1fr auto auto auto; gap:10px; padding:14px 16px; border-bottom:1px solid var(--ring)}
     .controls label{font-size:12px; color:var(--muted); display:block; margin-bottom:6px}
     .controls .ctrl{min-width:0}
     select, button, textarea, input[type="number"]{
-      background:#0c1426; color:var(--ink); border:1px solid var(--ring); border-radius:10px; padding:10px 12px; font-size:14px; outline:none;
+      background:var(--surface); color:var(--ink); border:1px solid var(--ring); border-radius:10px; padding:10px 12px; font-size:14px; outline:none;
     }
     button{background:linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); border:1px solid #1e40af}
-    button.secondary{background:#0c1426; border:1px solid var(--ring)}
+    button.secondary{background:var(--surface); border:1px solid var(--ring)}
     button:disabled{opacity:.6; cursor:not-allowed}
 
     .arena{padding:18px 16px; display:grid; gap:12px}
     .status{display:grid; grid-template-columns:repeat(5,1fr); gap:8px}
-    .pill{background:#0c1426; border:1px solid var(--ring); border-radius:12px; padding:10px 12px}
+    .pill{background:var(--surface); border:1px solid var(--ring); border-radius:12px; padding:10px 12px}
     .pill .k{font-size:12px; color:var(--muted)}
     .pill .v{font-size:18px; margin-top:2px}
 
-    .bar{height:8px; background:#0c1426; border:1px solid var(--ring); border-radius:999px; overflow:hidden}
+    .bar{height:8px; background:var(--surface); border:1px solid var(--ring); border-radius:999px; overflow:hidden}
     .bar > i{display:block; height:100%; width:0%; background:linear-gradient(90deg,#22c55e,#60a5fa)}
 
-    .target{line-height:1.9; font-size:20px; background:#0c1426; border:1px dashed var(--ring); border-radius:12px; padding:14px}
+    .target{line-height:1.9; font-size:20px; background:var(--surface); border:1px dashed var(--ring); border-radius:12px; padding:14px}
     .target span{padding:1px 0; transition:background-color .08s ease, color .08s ease;}
     .target span.pending{color:#7f8bad}
     .target span.correct{color:var(--ok)}
@@ -86,7 +110,10 @@
           <h1>타자 연습 · MVP</h1>
           <div class="sub">WPM · 정확도 · 실시간 피드백 — PRD 1단계 구현</div>
         </div>
-        <div class="sub" id="version">v0.1</div>
+        <div class="right">
+          <div class="sub" id="version">v0.1</div>
+          <button id="themeBtn" class="secondary">테마</button>
+        </div>
       </header>
 
       <div class="controls">
@@ -224,6 +251,7 @@
       keepText: document.getElementById('keepText'),
       clearHistory: document.getElementById('clearHistory'),
       historyTable: document.getElementById('historyTable').querySelector('tbody'),
+      themeBtn: document.getElementById('themeBtn'),
     };
 
     const state = {
@@ -238,6 +266,24 @@
       completed: false,
       timeLimitSec: 180,
     };
+
+    const themes = ['blue','dark','light'];
+    const themeLabels = {blue:'푸른색', dark:'다크', light:'밝은'};
+
+    function applyTheme(name){
+      document.body.classList.remove('theme-dark','theme-light');
+      if(name !== 'blue') document.body.classList.add(`theme-${name}`);
+      localStorage.setItem('theme', name);
+      els.themeBtn.textContent = themeLabels[name];
+    }
+
+    els.themeBtn.addEventListener('click', ()=>{
+      const cur = localStorage.getItem('theme') || 'blue';
+      const next = themes[(themes.indexOf(cur)+1)%themes.length];
+      applyTheme(next);
+    });
+
+    applyTheme(localStorage.getItem('theme') || 'blue');
 
     function pad(n){return n.toString().padStart(2,'0')}
 
