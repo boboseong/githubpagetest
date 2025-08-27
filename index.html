@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Typing Trainer · MVP</title>
+  <style>
+    :root{
+      --bg:#0b1220;           /* 배경 */
+      --panel:#121a2b;        /* 카드 배경 */
+      --muted:#8ea0bf;
+      --accent:#60a5fa;       /* 파랑 */
+      --ok:#22c55e;           /* 초록 */
+      --bad:#ef4444;          /* 빨강 */
+      --ink:#e5ecff;          /* 본문 */
+      --ink-dim:#b9c6e4;      /* 연한 본문 */
+      --ring:#1f2a44;         /* 테두리 */
+    }
+    html,body{height:100%}
+    body{
+      margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: linear-gradient(180deg,#0b1220 0%, #0c1426 40%, #0e162a 100%);
+      color:var(--ink); display:flex; align-items:center; justify-content:center; padding:24px;
+    }
+    .app{width:min(980px,100%);}
+    .card{
+      background:var(--panel); border:1px solid var(--ring); border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.35);
+      overflow:hidden;
+    }
+    header{display:flex; gap:16px; align-items:center; justify-content:space-between; padding:16px 18px; border-bottom:1px solid var(--ring); background:rgba(255,255,255,0.02)}
+    header h1{font-size:18px; margin:0; letter-spacing:0.3px}
+    header .sub{color:var(--ink-dim); font-size:12px}
+
+    .controls{display:grid; grid-template-columns:1fr auto auto auto; gap:10px; padding:14px 16px; border-bottom:1px solid var(--ring)}
+    .controls label{font-size:12px; color:var(--muted); display:block; margin-bottom:6px}
+    .controls .ctrl{min-width:0}
+    select, button, textarea, input[type="number"]{
+      background:#0c1426; color:var(--ink); border:1px solid var(--ring); border-radius:10px; padding:10px 12px; font-size:14px; outline:none;
+    }
+    button{background:linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%); border:1px solid #1e40af}
+    button.secondary{background:#0c1426; border:1px solid var(--ring)}
+    button:disabled{opacity:.6; cursor:not-allowed}
+
+    .arena{padding:18px 16px; display:grid; gap:12px}
+    .status{display:grid; grid-template-columns:repeat(5,1fr); gap:8px}
+    .pill{background:#0c1426; border:1px solid var(--ring); border-radius:12px; padding:10px 12px}
+    .pill .k{font-size:12px; color:var(--muted)}
+    .pill .v{font-size:18px; margin-top:2px}
+
+    .bar{height:8px; background:#0c1426; border:1px solid var(--ring); border-radius:999px; overflow:hidden}
+    .bar > i{display:block; height:100%; width:0%; background:linear-gradient(90deg,#22c55e,#60a5fa)}
+
+    .target{line-height:1.9; font-size:20px; background:#0c1426; border:1px dashed var(--ring); border-radius:12px; padding:14px}
+    .target span{padding:1px 0; transition:background-color .08s ease, color .08s ease;}
+    .target span.pending{color:#7f8bad}
+    .target span.correct{color:var(--ok)}
+    .target span.wrong{background:rgba(239,68,68,.18); color:#fda4af}
+    .target span.current{border-bottom:2px solid var(--accent)}
+
+    .input-wrap{display:flex; gap:8px; align-items:center}
+    .input-wrap input{flex:1; font-size:18px;}
+    .helper{color:var(--ink-dim); font-size:12px}
+
+    .results{padding:18px 16px; border-top:1px solid var(--ring); background:rgba(255,255,255,0.02); display:none}
+    .results h2{margin:0 0 8px 0; font-size:16px}
+    .grid{display:grid; grid-template-columns:repeat(4,1fr); gap:10px}
+    .history{padding:14px 16px; border-top:1px solid var(--ring)}
+    .history h3{margin:0 0 10px 0; font-size:14px; color:var(--ink-dim)}
+    table{width:100%; border-collapse:collapse; font-size:12px}
+    th,td{padding:8px 6px; border-bottom:1px solid var(--ring); text-align:left; color:var(--ink-dim)}
+    th{color:var(--ink)}
+
+    @media (max-width:760px){
+      .controls{grid-template-columns:1fr 1fr;}
+      .status{grid-template-columns:repeat(2,1fr)}
+      .grid{grid-template-columns:repeat(2,1fr)}
+      .target{font-size:18px}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <header>
+        <div>
+          <h1>타자 연습 · MVP</h1>
+          <div class="sub">WPM · 정확도 · 실시간 피드백 — PRD 1단계 구현</div>
+        </div>
+        <div class="sub" id="version">v0.1</div>
+      </header>
+
+      <div class="controls">
+        <div class="ctrl">
+          <label for="preset">연습 텍스트</label>
+          <select id="preset">
+            <option value="words">쉬운 단어(초급)</option>
+            <option value="sentences" selected>짧은 문장(기본)</option>
+            <option value="sayings">속담(도전)</option>
+          </select>
+        </div>
+        <div class="ctrl">
+          <label for="duration">연습 시간</label>
+          <select id="duration">
+            <option value="60">1분</option>
+            <option value="120">2분</option>
+            <option value="180" selected>3분</option>
+            <option value="300">5분</option>
+          </select>
+        </div>
+        <div class="ctrl">
+          <label>&nbsp;</label>
+          <button id="newText" class="secondary">텍스트 바꾸기</button>
+        </div>
+        <div class="ctrl">
+          <label>&nbsp;</label>
+          <button id="startBtn">시작</button>
+        </div>
+      </div>
+
+      <div class="arena">
+        <div class="status" aria-live="polite">
+          <div class="pill"><div class="k">남은 시간</div><div class="v"><span id="timeLeft">03:00</span></div></div>
+          <div class="pill"><div class="k">WPM</div><div class="v"><span id="wpm">0.0</span></div></div>
+          <div class="pill"><div class="k">정확도</div><div class="v"><span id="acc">0%</span></div></div>
+          <div class="pill"><div class="k">오타</div><div class="v"><span id="errors">0</span></div></div>
+          <div class="pill"><div class="k">진행도</div><div class="v"><span id="progressPct">0%</span></div></div>
+        </div>
+        <div class="bar"><i id="bar"></i></div>
+
+        <div class="target" id="target" aria-label="연습 대상 텍스트"></div>
+        <div class="input-wrap">
+          <input id="typing" type="text" inputmode="latin" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="여기에 타이핑을 시작하세요 (시작 버튼 후 활성화)" disabled />
+        </div>
+        <div class="helper">Tip: 텍스트 영역을 클릭하면 커서가 활성화됩니다. 백스페이스로 오타를 고치면 정확도에 반영됩니다.</div>
+      </div>
+
+      <div class="results" id="results">
+        <h2>결과 요약</h2>
+        <div class="grid">
+          <div class="pill"><div class="k">타자 속도 (WPM)</div><div class="v" id="rWpm">-</div></div>
+          <div class="pill"><div class="k">정확도 (%)</div><div class="v" id="rAcc">-</div></div>
+          <div class="pill"><div class="k">연습 시간 (분)</div><div class="v" id="rMins">-</div></div>
+          <div class="pill"><div class="k">총 입력 단어 수</div><div class="v" id="rWords">-</div></div>
+          <div class="pill"><div class="k">총 입력한 글자 수</div><div class="v" id="rChars">-</div></div>
+          <div class="pill"><div class="k">정확하게 입력한 글자 수</div><div class="v" id="rGood">-</div></div>
+          <div class="pill"><div class="k">오타 수</div><div class="v" id="rErrs">-</div></div>
+          <div class="pill"><div class="k">완료 상태</div><div class="v" id="rDone">-</div></div>
+        </div>
+        <div style="margin-top:12px; display:flex; gap:8px;">
+          <button id="retryBtn">다시하기</button>
+          <button id="keepText" class="secondary">같은 텍스트로</button>
+          <button id="clearHistory" class="secondary">기록 초기화</button>
+        </div>
+      </div>
+
+      <div class="history">
+        <h3>최근 기록 (로컬 저장소)</h3>
+        <table id="historyTable">
+          <thead>
+            <tr>
+              <th>날짜/시간</th>
+              <th>WPM</th>
+              <th>정확도</th>
+              <th>시간</th>
+              <th>오타</th>
+              <th>단어수</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // --------------------------- 샘플 텍스트 ---------------------------
+    const SAMPLES = {
+      words: [
+        "바다 산꽃 길돌 강물 하늘 바람 구름 모래 별빛",
+        "사과 바나나 포도 복숭아 배 오렌지 자두 파인애플",
+        "책 연필 노트 의자 탁자 창문 문 종이 지우개"
+      ],
+      sentences: [
+        "오늘은 새로운 것을 배우기에 딱 좋은 날입니다.",
+        "작은 습관이 큰 변화를 만듭니다.",
+        "천천히, 그러나 꾸준히 나아가 봅시다.",
+        "올바른 자세로 타이핑하면 손이 편합니다.",
+        "집중하여 한 줄씩 정확하게 입력해 보세요."
+      ],
+      sayings: [
+        "백문이 불여일견, 백견이 불여일타.",
+        "천 리 길도 한 걸음부터.",
+        "고생 끝에 낙이 온다.",
+        "시작이 반이다.",
+        "배움에는 끝이 없다."
+      ]
+    };
+
+    // --------------------------- 상태 ---------------------------
+    const els = {
+      preset: document.getElementById('preset'),
+      duration: document.getElementById('duration'),
+      newText: document.getElementById('newText'),
+      startBtn: document.getElementById('startBtn'),
+      target: document.getElementById('target'),
+      typing: document.getElementById('typing'),
+      timeLeft: document.getElementById('timeLeft'),
+      wpm: document.getElementById('wpm'),
+      acc: document.getElementById('acc'),
+      errors: document.getElementById('errors'),
+      progressPct: document.getElementById('progressPct'),
+      bar: document.getElementById('bar'),
+      results: document.getElementById('results'),
+      rWpm: document.getElementById('rWpm'),
+      rAcc: document.getElementById('rAcc'),
+      rMins: document.getElementById('rMins'),
+      rWords: document.getElementById('rWords'),
+      rChars: document.getElementById('rChars'),
+      rGood: document.getElementById('rGood'),
+      rErrs: document.getElementById('rErrs'),
+      rDone: document.getElementById('rDone'),
+      retryBtn: document.getElementById('retryBtn'),
+      keepText: document.getElementById('keepText'),
+      clearHistory: document.getElementById('clearHistory'),
+      historyTable: document.getElementById('historyTable').querySelector('tbody'),
+    };
+
+    const state = {
+      text: '',
+      started: false,
+      startTs: 0,
+      deadlineTs: 0,
+      timer: null,
+      typed: '',
+      correctChars: 0,
+      wrongChars: 0,
+      completed: false,
+      timeLimitSec: 180,
+    };
+
+    function pad(n){return n.toString().padStart(2,'0')}
+
+    function fmtTimeLeft(sec){
+      sec = Math.max(0, Math.floor(sec));
+      return `${pad(Math.floor(sec/60))}:${pad(sec%60)}`;
+    }
+
+    function randomFrom(arr){return arr[Math.floor(Math.random()*arr.length)]}
+
+    function pickText(){
+      const key = els.preset.value;
+      state.text = randomFrom(SAMPLES[key]);
+      renderTarget(state.text);
+    }
+
+    function renderTarget(text){
+      els.target.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      [...text].forEach((ch, i)=>{
+        const span = document.createElement('span');
+        span.textContent = ch;
+        span.className = 'pending';
+        span.dataset.idx = i;
+        frag.appendChild(span);
+      });
+      els.target.appendChild(frag);
+      markCurrent(0);
+    }
+
+    function markCurrent(i){
+      const spans = els.target.querySelectorAll('span');
+      spans.forEach(s=>s.classList.remove('current'));
+      const targetSpan = spans[i] || spans[spans.length-1];
+      if(targetSpan) targetSpan.classList.add('current');
+    }
+
+    function updateFromInput(){
+      const target = state.text;
+      const typed = els.typing.value;
+      state.typed = typed;
+
+      const spans = els.target.querySelectorAll('span');
+      let correct=0, wrong=0;
+      for(let i=0;i<spans.length;i++){
+        const sp = spans[i];
+        const ch = target[i];
+        const t = typed[i];
+        if(t===undefined){
+          sp.className = 'pending';
+        } else if(t===ch){
+          sp.className = 'correct';
+          correct++;
+        } else {
+          sp.className = 'wrong';
+          wrong++;
+        }
+      }
+      if(typed.length>spans.length){
+        // 초과 입력은 모두 오타로 간주
+        wrong += (typed.length - spans.length);
+      }
+      state.correctChars = correct;
+      state.wrongChars = wrong;
+
+      const progress = Math.min(100, Math.round((Math.min(typed.length, target.length)/target.length)*100));
+      els.progressPct.textContent = progress + '%';
+      markCurrent(Math.min(typed.length, target.length-1));
+
+      // 실시간 지표 계산
+      const elapsedSec = Math.max(0.25, (Date.now()-state.startTs)/1000);
+      const mins = elapsedSec/60;
+      const wpmVal = (state.correctChars/5)/mins;
+      const accVal = state.correctChars / Math.max(1, state.correctChars + state.wrongChars);
+      els.wpm.textContent = wpmVal.toFixed(1);
+      els.acc.textContent = (accVal*100).toFixed(0)+"%";
+      els.errors.textContent = state.wrongChars;
+
+      if(typed.length >= target.length){
+        // 텍스트 끝까지 도달 — 조기 완료
+        finish(true);
+      }
+    }
+
+    function start(){
+      if(state.started) return;
+      state.started = true;
+      state.completed = false;
+      els.results.style.display = 'none';
+      els.typing.disabled = false;
+      els.typing.value = '';
+      els.typing.focus();
+
+      state.timeLimitSec = parseInt(els.duration.value,10);
+      state.startTs = Date.now();
+      state.deadlineTs = state.startTs + state.timeLimitSec*1000;
+
+      tick();
+      state.timer = setInterval(tick, 100);
+      els.startBtn.disabled = true;
+      els.preset.disabled = true;
+      els.duration.disabled = true;
+      els.newText.disabled = true;
+    }
+
+    function tick(){
+      const now = Date.now();
+      const left = (state.deadlineTs - now)/1000;
+      els.timeLeft.textContent = fmtTimeLeft(left);
+      const pct = Math.max(0, Math.min(100, 100 - (left/state.timeLimitSec)*100));
+      els.bar.style.width = pct + '%';
+      if(left <= 0){
+        finish(false);
+      }
+    }
+
+    function finish(completed){
+      if(!state.started) return;
+      state.started = false;
+      state.completed = completed;
+      clearInterval(state.timer);
+
+      els.typing.disabled = true;
+      els.startBtn.disabled = false;
+      els.preset.disabled = false;
+      els.duration.disabled = false;
+      els.newText.disabled = false;
+
+      const elapsedSec = (Math.min(Date.now(), state.deadlineTs) - state.startTs)/1000;
+      const mins = elapsedSec/60;
+      const totalChars = state.correctChars + state.wrongChars;
+      const wordsTyped = (els.typing.value.trim().length === 0) ? 0 : els.typing.value.trim().split(/\s+/).length;
+      const wpmVal = (state.correctChars/5)/Math.max(0.25, mins);
+      const accVal = state.correctChars / Math.max(1, totalChars);
+
+      els.rWpm.textContent = wpmVal.toFixed(1);
+      els.rAcc.textContent = (accVal*100).toFixed(1) + '%';
+      els.rMins.textContent = (state.timeLimitSec/60).toFixed(2);
+      els.rWords.textContent = wordsTyped;
+      els.rChars.textContent = totalChars;
+      els.rGood.textContent = state.correctChars;
+      els.rErrs.textContent = state.wrongChars;
+      els.rDone.textContent = completed ? '텍스트 완료' : '시간 종료';
+
+      els.results.style.display = 'block';
+
+      saveHistory({
+        ts: Date.now(),
+        wpm: parseFloat(wpmVal.toFixed(1)),
+        acc: parseFloat((accVal*100).toFixed(1)),
+        mins: (state.timeLimitSec/60),
+        errors: state.wrongChars,
+        words: wordsTyped,
+      });
+      renderHistory();
+    }
+
+    function saveHistory(item){
+      try{
+        const key = 'typing_mvp_history';
+        const list = JSON.parse(localStorage.getItem(key) || '[]');
+        list.unshift(item);
+        localStorage.setItem(key, JSON.stringify(list.slice(0,20)));
+      }catch(e){ console.warn('history save failed', e); }
+    }
+
+    function renderHistory(){
+      const key = 'typing_mvp_history';
+      let list = [];
+      try{ list = JSON.parse(localStorage.getItem(key) || '[]'); } catch(e){ list = []; }
+      els.historyTable.innerHTML='';
+      list.forEach(rec =>{
+        const tr = document.createElement('tr');
+        const dt = new Date(rec.ts);
+        const when = dt.toLocaleString();
+        tr.innerHTML = `
+          <td>${when}</td>
+          <td>${rec.wpm}</td>
+          <td>${rec.acc}%</td>
+          <td>${rec.mins.toFixed(2)}분</td>
+          <td>${rec.errors}</td>
+          <td>${rec.words}</td>
+        `;
+        els.historyTable.appendChild(tr);
+      });
+    }
+
+    // --------------------------- 이벤트 ---------------------------
+    els.newText.addEventListener('click', ()=>{ pickText(); els.typing.value=''; updateFromInput(); });
+    els.startBtn.addEventListener('click', start);
+    els.typing.addEventListener('input', updateFromInput);
+
+    els.retryBtn.addEventListener('click', ()=>{ pickText(); els.results.style.display='none'; els.typing.value=''; updateFromInput(); });
+    els.keepText.addEventListener('click', ()=>{ els.results.style.display='none'; els.typing.value=''; updateFromInput(); });
+
+    els.clearHistory.addEventListener('click', ()=>{
+      if(confirm('최근 기록을 모두 삭제할까요?')){
+        localStorage.removeItem('typing_mvp_history');
+        renderHistory();
+      }
+    });
+
+    // 텍스트 클릭 시 포커스
+    els.target.addEventListener('click', ()=>{ if(!els.typing.disabled) els.typing.focus(); });
+
+    // 초기 렌더
+    pickText();
+    renderHistory();
+    updateFromInput();
+  </script>
+</body>
+</html>
